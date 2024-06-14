@@ -2,13 +2,9 @@
 
 namespace App\Http\Controllers;
 
-use App\Helpers\ApiFormatter;
 use Illuminate\Http\Request;
-use App\Models\InboundStuff;
-use App\Models\StuffStock;
-use Illuminate\Support\Str;
 
-class InboundStuffController extends Controller
+class InboundController extends Controller
 {
     public function __construct()
     {
@@ -140,4 +136,6 @@ class InboundStuffController extends Controller
             return ApiFormatter::sendResponse(400, 'bad request', $err->getMessage());
         }
     }
+}
+
 }

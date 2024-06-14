@@ -7,7 +7,7 @@ use App\Models\Stuff;
 use Illuminate\Http\Request;
 
 class StuffController extends Controller
-{
+{ 
     public function __construct()
     {
         $this->middleware('auth:api');

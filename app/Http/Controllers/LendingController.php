@@ -7,6 +7,7 @@ use App\Models\StuffStock;
 use App\Models\Lending;
 use App\Models\Restoration;
 use App\Helpers\ApiFormatter;
+use Validator;
 
 class LendingController extends Controller
 {
@@ -19,7 +20,6 @@ class LendingController extends Controller
     {
         try {
             $data = Lending::with('stuff', 'user', 'restoration')->get();
-
             return ApiFormatter::sendResponse(200, 'success', $data);
         } catch (\Exception $err) {
             return ApiFormatter::sendResponse(400, 'bad request', $err->getMessage());
@@ -29,9 +29,15 @@ class LendingController extends Controller
     public function show($id)
     {
         try {
-            $data = Lending::where('id', $id)->with('user', 'restoration', 'restoration.user', 'stuff', 'stuff.stuffStock')->first();
+            $data = Lending::where('id', $id)
+                ->with('user', 'restoration', 'restoration.user', 'stuff', 'stuff.stuffStock')
+                ->first();
 
-            return ApiFormatter::sendResponse(200, 'success', $data);
+            if ($data) {
+                return ApiFormatter::sendResponse(200, 'success', $data);
+            } else {
+                return ApiFormatter::sendResponse(404, 'not found', 'Data not found');
+            }
         } catch (\Exception $err) {
             return ApiFormatter::sendResponse(400, 'bad request', $err->getMessage());
         }
@@ -39,36 +45,39 @@ class LendingController extends Controller
 
     public function store(Request $request)
     {
-        try {
-            $this->validate($request, [
-                'stuff_id' => 'required',
-                'date_time' => 'required',
-                'name' => 'required',
-                'total_stuff' => 'required',
-            ]);
-            // user_id tidak masuk ke validasi karena value nya bukan bersumber dr luar (dipilih user)
+        $validator = Validator::make($request->all(), [
+            'stuff_id' => 'required|integer',
+            'date_time' => 'required|date',
+            'name' => 'required|string',
+            'total_stuff' => 'required|integer|min:1',
+        ]);
 
-            // cek total_available stuff terkait
+        if ($validator->fails()) {
+            return ApiFormatter::sendResponse(400, 'bad request', $validator->errors());
+        }
+
+        try {
+            // Cek total_available stuff terkait
             $totalAvailable = StuffStock::where('stuff_id', $request->stuff_id)->value('total_available');
 
             if (is_null($totalAvailable)) {
                 return ApiFormatter::sendResponse(400, 'bad request', 'Belum ada data inbound!');
-            } elseif ((int)$request->total_stuff > (int)$totalAvailable) {
+            } elseif ($request->total_stuff > $totalAvailable) {
                 return ApiFormatter::sendResponse(400, 'bad request', 'Stok tidak tersedia!');
             } else {
                 $lending = Lending::create([
                     'stuff_id' => $request->stuff_id,
                     'date_time' => $request->date_time,
                     'name' => $request->name,
-                    'notes' => $request->notes ? $request->notes : '-',
+                    'notes' => $request->notes ?? '-',
                     'total_stuff' => $request->total_stuff,
                     'user_id' => auth()->user()->id,
                 ]);
 
-                $totalAvailableNow = (int)$totalAvailable - (int)$request->total_stuff;
-                $stuffStock = StuffStock::where('stuff_id', $request->stuff_id)->update([ 'total_available' => $totalAvailableNow ]);
+                $totalAvailableNow = $totalAvailable - $request->total_stuff;
+                StuffStock::where('stuff_id', $request->stuff_id)->update(['total_available' => $totalAvailableNow]);
 
-                $dataLending = Lending::where('id', $lending['id'])->with('user', 'stuff', 'stuff.stuffStock')->first();
+                $dataLending = Lending::where('id', $lending->id)->with('user', 'stuff', 'stuff.stuffStock')->first();
 
                 return ApiFormatter::sendResponse(200, 'success', $dataLending);
             }
@@ -77,7 +86,7 @@ class LendingController extends Controller
         }
     }
 
-    public function destroy ($id)
+    public function destroy($id)
     {
         try {
             $restoration = Restoration::where('lending_id', $id)->first();
@@ -86,8 +95,12 @@ class LendingController extends Controller
             }
 
             $lending = Lending::where('id', $id)->first();
-            $stuffStock = StuffStock::where('stuff_id', $lending['stuff_id'])->first();
-            $totalAvailable = (int)$stuffStock['total_available'] + (int)$lending['total_stuff'];
+            if (!$lending) {
+                return ApiFormatter::sendResponse(404, 'not found', 'Data peminjaman tidak ditemukan!');
+            }
+
+            $stuffStock = StuffStock::where('stuff_id', $lending->stuff_id)->first();
+            $totalAvailable = $stuffStock->total_available + $lending->total_stuff;
             $stuffStock->update(['total_available' => $totalAvailable]);
             $lending->delete();
 

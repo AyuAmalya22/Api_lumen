@@ -14,4 +14,11 @@ class StuffStock extends Model
     {
         return $this->belongsTo(Stuff::class);
     }
+
+    // Tambahkan relasi ke InboundStuff jika ada
+    public function inboundStuffs()
+    {
+        return $this->hasMany(InboundStuff::class, 'stuff_id', 'stuff_id');
+    }
 }
+

@@ -58,6 +58,8 @@ $router->group(['middleware' => 'cors'], function ($router) {
     $router->get('/inbound-stuffs/restore/{id}', 'InboundStuffController@restore');
     $router->delete('/inbound-stuffs/permanent-delete/{id}', 'InboundStuffController@permanentDelete');
 
+
     $router->post('/restorations/{lending_id}', 'RestorationController@store');
     $router->delete('/lendings/delete/{id}', 'LendingController@destroy');
+
 });
